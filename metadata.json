@@ -1,0 +1,5 @@
+{
+  "name": "LogSage",
+  "description": "Autonomous DevOps incident investigation agent that retrieves logs, runs analytics, and identifies root causes.",
+  "requestFramePermissions": []
+}
