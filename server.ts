@@ -32,12 +32,13 @@ db.exec(`
     trace_id TEXT
   );
 
-  CREATE TABLE IF NOT EXISTS metrics (
+  CREATE TABLE IF NOT EXISTS actions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id TEXT,
+    action_type TEXT,
+    status TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    service TEXT,
-    metric_name TEXT,
-    value REAL
+    details TEXT
   );
 
   CREATE TABLE IF NOT EXISTS deployments (
@@ -46,6 +47,14 @@ db.exec(`
     version TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     status TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    service TEXT,
+    metric_name TEXT,
+    value REAL
   );
 `);
 
@@ -70,16 +79,25 @@ function seedData() {
     insertLog.run("payments-api", "INFO", null, "Request processed successfully", "2.3.0", `2026-02-26T10:${String(i).padStart(2, '0')}:00Z`, `trace-${i}`);
   }
 
-  // Error logs for incident
+  // Error logs for incident 101
   for (let i = 0; i < 20; i++) {
     insertLog.run("payments-api", "ERROR", "MemoryLeak", "OutOfMemoryError: Java heap space", "2.3.1", `2026-02-26T19:${String(i).padStart(2, '0')}:00Z`, `trace-err-${i}`);
     insertLog.run("payments-api", "WARN", "GC_Pressure", "High GC overhead detected", "2.3.1", `2026-02-26T19:${String(i).padStart(2, '0')}:05Z`, `trace-err-${i}`);
   }
 
+  // Metrics
+  const insertMetric = db.prepare("INSERT INTO metrics (service, metric_name, value, timestamp) VALUES (?, ?, ?, ?)");
+  for (let i = 0; i < 24; i++) {
+    const hour = String(i).padStart(2, '0');
+    insertMetric.run("payments-api", "cpu_usage", 20 + Math.random() * 10, `2026-02-26T${hour}:00:00Z`);
+    insertMetric.run("payments-api", "memory_usage", 40 + (i > 18 ? 40 : 10) + Math.random() * 5, `2026-02-26T${hour}:00:00Z`);
+  }
+
   // Incidents
   const insertIncident = db.prepare("INSERT INTO incidents (id, service, severity, status, title, description, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)");
   insertIncident.run("inc-101", "payments-api", "CRITICAL", "OPEN", "High Error Rate in Payments API", "Spike in OOM errors detected after recent deployment.", "2026-02-26T19:15:00Z");
-  insertIncident.run("inc-102", "auth-service", "MEDIUM", "RESOLVED", "Latence Spike", "Authentication requests taking > 500ms", "2026-02-26T14:20:00Z");
+  insertIncident.run("inc-102", "auth-service", "MEDIUM", "RESOLVED", "Latency Spike", "Authentication requests taking > 500ms", "2026-02-26T14:20:00Z");
+  insertIncident.run("inc-103", "inventory-db", "HIGH", "OPEN", "Connection Pool Exhaustion", "Database connections reaching limit for inventory-db service.", "2026-02-26T19:45:00Z");
 
   console.log("Seeding complete.");
 }
@@ -94,6 +112,24 @@ async function startServer() {
   app.get("/api/incidents", (req, res) => {
     const incidents = db.prepare("SELECT * FROM incidents ORDER BY timestamp DESC").all();
     res.json(incidents);
+  });
+
+  app.get("/api/metrics", (req, res) => {
+    const { service } = req.query;
+    const metrics = db.prepare("SELECT * FROM metrics WHERE service = ? ORDER BY timestamp ASC").all(service);
+    res.json(metrics);
+  });
+
+  app.post("/api/actions", (req, res) => {
+    const { incident_id, action_type, details } = req.body;
+    const result = db.prepare("INSERT INTO actions (incident_id, action_type, status, details) VALUES (?, ?, ?, ?)")
+      .run(incident_id, action_type, "COMPLETED", details);
+    res.json({ id: result.lastInsertRowid, status: "COMPLETED" });
+  });
+
+  app.get("/api/actions/:incident_id", (req, res) => {
+    const actions = db.prepare("SELECT * FROM actions WHERE incident_id = ?").all(req.params.incident_id);
+    res.json(actions);
   });
 
   app.get("/api/incidents/:id", (req, res) => {

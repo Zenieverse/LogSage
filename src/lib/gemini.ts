@@ -40,6 +40,20 @@ export const getDeployments = async () => {
   return res.json();
 };
 
+export const runWorkflowAction = async (params: { incident_id: string; action_type: string; details: string }) => {
+  const res = await fetch("/api/actions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+};
+
+export const getMetrics = async (params: { service: string }) => {
+  const res = await fetch(`/api/metrics?service=${params.service}`);
+  return res.json();
+};
+
 export const tools = [
   {
     name: "search_logs",
@@ -71,6 +85,30 @@ export const tools = [
     parameters: {
       type: Type.OBJECT,
       properties: {},
+    },
+  },
+  {
+    name: "get_metrics",
+    description: "Retrieve system metrics (CPU, Memory, etc.) for a specific service.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        service: { type: Type.STRING, description: "The name of the service." },
+      },
+      required: ["service"],
+    },
+  },
+  {
+    name: "workflow_action",
+    description: "Trigger a remediation workflow action like restarting a service or rolling back a deployment.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        incident_id: { type: Type.STRING, description: "The ID of the incident being investigated." },
+        action_type: { type: Type.STRING, description: "Type of action: 'RESTART', 'ROLLBACK', 'TICKET', 'NOTIFY'" },
+        details: { type: Type.STRING, description: "Additional details for the action." },
+      },
+      required: ["incident_id", "action_type", "details"],
     },
   },
 ];
