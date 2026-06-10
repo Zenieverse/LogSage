@@ -8,6 +8,8 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/5ff00903-e597-4f8c-aeab-07430094ab56
 
+or https://logsage-764082783379.us-west1.run.app
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
